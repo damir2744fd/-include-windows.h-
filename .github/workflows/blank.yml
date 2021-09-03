@@ -1,0 +1,37 @@
+#include <windows.h>
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi.lib")
+
+BOOL IsConnectedToServer(DWORD dwProcessId)
+{
+    DWORD dwSize = 0;
+    if (GetExtendedTcpTable(0, &dwSize, TRUE, AF_INET, TCP_TABLE_OWNER_PID_CONNECTIONS, 0) != ERROR_INSUFFICIENT_BUFFER)
+        return FALSE;
+
+    HANDLE hHeap = GetProcessHeap();
+
+    LPVOID lpTcpTable = HeapAlloc(hHeap, 0, dwSize);
+    if (lpTcpTable == NULL)
+        return FALSE;
+
+    if (GetExtendedTcpTable(lpTcpTable, &dwSize, TRUE, AF_INET, TCP_TABLE_OWNER_PID_CONNECTIONS, 0) != NO_ERROR)
+    {
+        HeapFree(hHeap, 0, lpTcpTable);
+        return FALSE;
+    }
+
+    DWORD i;
+    MIB_TCPROW_OWNER_PID TcpTable;
+    for (i = 0; i < ((PMIB_TCPTABLE_OWNER_PID)lpTcpTable)->dwNumEntries; i++)
+    {
+        TcpTable = ((PMIB_TCPTABLE_OWNER_PID)lpTcpTable)->table[i];
+        if (TcpTable.dwOwningPid == dwProcessId && TcpTable.dwRemotePort == 0xEF21)
+        {
+            HeapFree(hHeap, 0, lpTcpTable);
+            return TRUE;
+        }
+    }
+
+    HeapFree(hHeap, 0, lpTcpTable);
+    return FALSE;
+}
